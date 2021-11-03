@@ -1,0 +1,1771 @@
+diff --git a/.gitignore b/.gitignore
+deleted file mode 100644
+index f246f7c..0000000
+--- a/.gitignore
++++ /dev/null
+@@ -1,8 +0,0 @@
+-data/
+-__pycache__/
+-.ipynb_checkpoints/
+-.gitignore
+-.vscode/
+-.DS_Store
+-OLD/
+-results/
+diff --git a/README.md b/README.md
+index 0c59ee7..b50d3e7 100644
+--- a/README.md
++++ b/README.md
+@@ -1,13 +1,7 @@
+-# Unsupervised Domain Adatation
+-
+-Pytoch implementations of:
+-
+-1. Ganin, Yaroslav, et al. *"Domain-adversarial training of neural networks."* The journal of machine learning research 17.1 (2016): 2096-2030.
+-
+-2. Sankaranarayanan, Swami, et al. *"Generate to adapt: Aligning domains using generative adversarial networks."* Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2018.
+-
+-## Datasets
+-
+-1. MINST -> MINST-M
+-
+-> Set data directory to *./data/<dataset_name>*
++/data - actual data (raw and processed)
++/dataset - all dataloaders 
++/notebook - jupyter notebook dump
++/OLD - old junk
++/real - all experiments with real AQ data.
++/toy - all experiments with toy dataset such as MNIST. 
++/utils - common helper functions
+diff --git a/datasets/mnist.py b/datasets/mnist.py
+index 9166edc..da0daea 100644
+--- a/datasets/mnist.py
++++ b/datasets/mnist.py
+@@ -6,7 +6,8 @@ class MNISTDataset(Dataset):
+     def __init__(self, data, transform=None):
+ 
+         self.data = data[0].unsqueeze(3)  # [N,28,28,1]
+-        self.data = self.data.permute(0, 3, 1, 2)
++        self.data = self.data.permute(0, 3, 1, 2)  # [N,1,28,28]
++        self.data = self.data.expand(-1, 3, -1, -1)  # [N,3,28,28]
+         self.labels = data[1]
+         self.transform = transform
+ 
+@@ -24,21 +25,19 @@ class MNISTDataset(Dataset):
+         return X, y
+ 
+ 
+-def fetch(data_dir,
+-          batch_size=128,
++def fetch(data,
++          batch_size=64,
+           transform=None,
+           shuffle=True,
+           num_workers=1,
+           pin_memory=True):
+ 
+-    data = torch.load(data_dir)
++    # data = torch.load(data_dir)
+ 
+     dataset = MNISTDataset(data=data, transform=transform)
+ 
+-    dataloader = DataLoader(dataset,
+-                            batch_size=batch_size,
+-                            shuffle=shuffle,
+-                            num_workers=num_workers,
+-                            pin_memory=pin_memory)
+-
+-    return dataloader
++    return DataLoader(dataset,
++                      batch_size=batch_size,
++                      shuffle=shuffle,
++                      num_workers=num_workers,
++                      pin_memory=pin_memory)
+diff --git a/datasets/mnist_m.py b/datasets/mnist_m.py
+index 59e9d2f..fe2be8b 100644
+--- a/datasets/mnist_m.py
++++ b/datasets/mnist_m.py
+@@ -23,21 +23,19 @@ class MNISTMDataset(Dataset):
+         return X, y
+ 
+ 
+-def fetch(data_dir,
+-          batch_size=128,
++def fetch(data,
++          batch_size=64,
+           transform=None,
+           shuffle=True,
+           num_workers=1,
+           pin_memory=True):
+ 
+-    data = torch.load(data_dir)
++    # data = torch.load(data_dir)
+ 
+     dataset = MNISTMDataset(data=data, transform=transform)
+ 
+-    dataloader = DataLoader(dataset,
+-                            batch_size=batch_size,
+-                            shuffle=shuffle,
+-                            num_workers=num_workers,
+-                            pin_memory=pin_memory)
+-
+-    return dataloader
++    return DataLoader(dataset,
++                      batch_size=batch_size,
++                      shuffle=shuffle,
++                      num_workers=num_workers,
++                      pin_memory=pin_memory)
+diff --git a/models/ganin.py b/models/ganin.py
+deleted file mode 100644
+index 982c9c4..0000000
+--- a/models/ganin.py
++++ /dev/null
+@@ -1,66 +0,0 @@
+-import torch.nn as nn
+-from torch.autograd import Function
+-
+-
+-class GaninModel(nn.Module):
+-    """ MNIST architecture
+-    +Dropout2d, 84% ~ 73%
+-    -Dropout2d, 50% ~ 73%
+-    """
+-    def __init__(self):
+-        super().__init__()
+-        self.restored = False
+-
+-        self.feature = nn.Sequential(
+-            nn.Conv2d(in_channels=3, out_channels=32,
+-                      kernel_size=(5, 5)),  # 3 28 28, 32 24 24
+-            nn.BatchNorm2d(32),
+-            nn.ReLU(inplace=True),
+-            nn.MaxPool2d(kernel_size=(2, 2)),  # 32 12 12
+-            nn.Conv2d(in_channels=32, out_channels=48,
+-                      kernel_size=(5, 5)),  # 48 8 8
+-            nn.BatchNorm2d(48),
+-            nn.Dropout2d(),
+-            nn.ReLU(inplace=True),
+-            nn.MaxPool2d(kernel_size=(2, 2)),  # 48 4 4
+-        )
+-
+-        self.classifier = nn.Sequential(
+-            nn.Linear(48 * 4 * 4, 100),
+-            nn.BatchNorm1d(100),
+-            nn.ReLU(inplace=True),
+-            nn.Linear(100, 100),
+-            nn.BatchNorm1d(100),
+-            nn.ReLU(inplace=True),
+-            nn.Linear(100, 10),
+-        )
+-
+-        self.discriminator = nn.Sequential(
+-            nn.Linear(48 * 4 * 4, 100),
+-            nn.BatchNorm1d(100),
+-            nn.ReLU(inplace=True),
+-            nn.Linear(100, 1),
+-        )
+-
+-    def forward(self, input_data, alpha):
+-        input_data = input_data.expand(input_data.data.shape[0], 3, 28, 28)
+-        feature = self.feature(input_data)
+-        feature = feature.view(-1, 48 * 4 * 4)
+-        reverse_feature = ReverseGradientLayer.apply(feature, alpha)
+-        class_output = self.classifier(feature)
+-        domain_output = self.discriminator(reverse_feature)
+-
+-        return class_output, domain_output
+-
+-
+-class ReverseGradientLayer(Function):
+-    @staticmethod
+-    def forward(ctx, x, alpha):
+-        ctx.alpha = alpha
+-
+-        return x.view_as(x)
+-
+-    @staticmethod
+-    def backward(ctx, grad_output):
+-
+-        return -1 * ctx.alpha * grad_output, None
+diff --git a/models/sankar.py b/models/sankar.py
+deleted file mode 100644
+index a2c0772..0000000
+--- a/models/sankar.py
++++ /dev/null
+@@ -1,150 +0,0 @@
+-import torch
+-import torch.nn as nn
+-
+-
+-class FeatureExtractor(nn.Module):
+-    def __init__(self, num_filters_disc=64):
+-        super().__init__()
+-
+-        self.num_filters_disc = num_filters_disc
+-
+-        self.feature = nn.Sequential(
+-            nn.Conv2d(3, self.num_filters_disc, 5, stride=1, padding=0),
+-            # nn.BatchNorm2d(self.num_filters_disc),
+-            nn.ReLU(), nn.MaxPool2d(2, stride=2),
+-            nn.Conv2d(self.num_filters_disc,
+-                      self.num_filters_disc,
+-                      5,
+-                      stride=1,
+-                      padding=0), nn.ReLU(), nn.MaxPool2d(2, stride=2),
+-            # nn.BatchNorm2d(self.num_filters_disc),
+-            nn.Conv2d(self.num_filters_disc,
+-                      2 * self.num_filters_disc,
+-                      5,
+-                      stride=1,
+-                      padding=0), nn.ReLU())
+-            
+-
+-    def forward(self, input):
+-        output = self.feature(input)
+-
+-        return output.view(-1, 2 * self.num_filters_disc)
+-
+-
+-class ClassifierNet(nn.Module):
+-    def __init__(self, n_classes, num_filters_disc=64):
+-        super().__init__()
+-
+-        self.classifier = nn.Sequential(
+-            nn.Linear(2 * num_filters_disc, 2 * num_filters_disc),
+-            nn.ReLU(),
+-            nn.Linear(2 * num_filters_disc, n_classes),
+-        )
+-
+-    def forward(self, x):
+-        output = self.classifier(x)
+-        return output
+-
+-
+-class Generator(nn.Module):
+-    def __init__(self, n_classes, z_dim, num_filters_gen=64, num_filters_disc=64):
+-        super().__init__()
+-
+-        self.f_out_dim = 2 * num_filters_disc
+-        self.z_dim = z_dim
+-        self.n_classes = n_classes
+-        self.num_filters_gen = num_filters_gen
+-
+-        self.gen = nn.Sequential(
+-            nn.ConvTranspose2d(
+-                self.z_dim + self.f_out_dim + n_classes + 1,
+-                self.num_filters_gen * 8,
+-                2,
+-                1,
+-                0,
+-                bias=False,
+-            ),
+-            nn.BatchNorm2d(self.num_filters_gen * 8),
+-            nn.ReLU(),
+-            nn.ConvTranspose2d(self.num_filters_gen * 8,
+-                               self.num_filters_gen * 4,
+-                               4,
+-                               2,
+-                               1,
+-                               bias=False),
+-            nn.BatchNorm2d(self.num_filters_gen * 4),
+-            nn.ReLU(),
+-            nn.ConvTranspose2d(self.num_filters_gen * 4,
+-                               self.num_filters_gen * 2,
+-                               4,
+-                               2,
+-                               1,
+-                               bias=False),
+-            nn.BatchNorm2d(self.num_filters_gen * 2),
+-            nn.ReLU(),
+-            nn.ConvTranspose2d(self.num_filters_gen * 2,
+-                               self.num_filters_gen,
+-                               4,
+-                               2,
+-                               1,
+-                               bias=False),
+-            nn.BatchNorm2d(self.num_filters_gen),
+-            nn.ReLU(),
+-            nn.ConvTranspose2d(self.num_filters_gen, 3, 4, 2, 1, bias=False),
+-            nn.Tanh(),
+-        )
+-
+-    def forward(self, input):
+-        # batch_size = input.shape[0]
+-        input = input.view(-1, self.f_out_dim + self.z_dim + self.n_classes + 1, 1,
+-                           1)
+-        # noise = torch.randn(batch_size, self.z_dim, 1, 1)
+-        # output = self.gen(torch.cat((input, noise), 1))
+-        return self.gen(input)
+-
+-
+-class Discriminator(nn.Module):
+-    def __init__(self, n_classes, num_filters_disc=64):
+-        super().__init__()
+-
+-        self.n_classes = n_classes
+-        self.num_filters_disc = num_filters_disc
+-
+-        self.disc = nn.Sequential(
+-            nn.Conv2d(3, self.num_filters_disc, 3, 1, 1),
+-            nn.BatchNorm2d(self.num_filters_disc),
+-            nn.LeakyReLU(0.2, ),
+-            nn.MaxPool2d(2, 2),
+-            nn.Conv2d(self.num_filters_disc, self.num_filters_disc * 2, 3, 1,
+-                      1),
+-            nn.BatchNorm2d(self.num_filters_disc * 2),
+-            nn.LeakyReLU(0.2, ),
+-            nn.MaxPool2d(2, 2),
+-            nn.Conv2d(self.num_filters_disc * 2, self.num_filters_disc * 4, 3,
+-                      1, 1),
+-            nn.BatchNorm2d(self.num_filters_disc * 4),
+-            nn.LeakyReLU(0.2, ),
+-            nn.MaxPool2d(2, 2),
+-            nn.Conv2d(self.num_filters_disc * 4, self.num_filters_disc * 2, 3,
+-                      1, 1),
+-            nn.BatchNorm2d(self.num_filters_disc * 2),
+-            nn.LeakyReLU(0.2, ),
+-            nn.MaxPool2d(4, 4),
+-        )
+-
+-        # Domain classifier - binary
+-        self.classifier_d = nn.Sequential(
+-            nn.Linear(self.num_filters_disc * 2, 1),
+-            nn.Sigmoid(),
+-        )
+-
+-        self.classifier_c = nn.Sequential(
+-            nn.Linear(2 * self.num_filters_disc, self.n_classes))
+-
+-    def forward(self, input):
+-        output = self.disc(input)
+-        output = output.view(-1, self.num_filters_disc * 2)
+-        output_d = self.classifier_d(output)
+-        output_c = self.classifier_c(output)
+-
+-        return output_d.view(-1), output_c
+diff --git a/notebooks/train_ganin.ipynb b/notebooks/train_ganin.ipynb
+deleted file mode 100644
+index b408f4f..0000000
+--- a/notebooks/train_ganin.ipynb
++++ /dev/null
+@@ -1,840 +0,0 @@
+-{
+- "cells": [
+-  {
+-   "cell_type": "code",
+-   "execution_count": 1,
+-   "metadata": {
+-    "colab": {
+-     "base_uri": "https://localhost:8080/"
+-    },
+-    "executionInfo": {
+-     "elapsed": 757,
+-     "status": "ok",
+-     "timestamp": 1616048324174,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "NoaiIAvQCndk",
+-    "outputId": "faec71cd-8009-4e08-a818-73c154adfb80"
+-   },
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "# from google.colab import drive\n",
+-    "# drive.mount(\"/content/drive\")"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 3,
+-   "metadata": {
+-    "colab": {
+-     "base_uri": "https://localhost:8080/"
+-    },
+-    "executionInfo": {
+-     "elapsed": 784,
+-     "status": "ok",
+-     "timestamp": 1616048813278,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "lCbtyJtYhka_",
+-    "outputId": "0e75ebb1-a8db-4518-ceca-df7b5efa2273"
+-   },
+-   "outputs": [
+-    {
+-     "output_type": "stream",
+-     "name": "stdout",
+-     "text": [
+-      "Device:  cpu\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "import os\n",
+-    "\n",
+-    "# os.chdir(\"/content/drive/MyDrive/Colab Notebooks/NASA_Transfer_Learning\")\n",
+-    "\n",
+-    "import sys\n",
+-    "sys.path.append(\"../\")\n",
+-    "\n",
+-    "from datetime import datetime\n",
+-    "import numpy as np\n",
+-    "import torch\n",
+-    "import torch.nn as nn\n",
+-    "import torch.optim as optim\n",
+-    "import torch.nn.functional as F\n",
+-    "from torchvision import datasets, transforms\n",
+-    "\n",
+-    "import data_loader\n",
+-    "from models.ganin import GaninModel\n",
+-    "\n",
+-    "# Ensure deterministic behavior\n",
+-    "torch.backends.cudnn.deterministic = True\n",
+-    "# random.seed(hash(\"setting random seeds\") % 2**32 - 1)\n",
+-    "np.random.seed(hash(\"improves reproducibility\") % 2 ** 32 - 1)\n",
+-    "torch.manual_seed(hash(\"by removing stochasticity\") % 2 ** 32 - 1)\n",
+-    "torch.cuda.manual_seed_all(hash(\"so runs are repeatable\") % 2 ** 32 - 1)\n",
+-    "\n",
+-    "# Pytorch performance tuninng guide - NVIDIA\n",
+-    "torch.backends.cudnn.benchmark = True  # speeds up convolution operations\n",
+-    "\n",
+-    "# Device\n",
+-    "device = torch.device(\"cuda:0\" if torch.cuda.is_available() else \"cpu\")\n",
+-    "print(\"Device: \", device)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 3,
+-   "metadata": {
+-    "executionInfo": {
+-     "elapsed": 1435,
+-     "status": "ok",
+-     "timestamp": 1616048324863,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "KhyykiwQgcjc"
+-   },
+-   "outputs": [],
+-   "source": [
+-    "# Hyperparameters\n",
+-    "IMG_SIZE = 28\n",
+-    "BATCH_SIZE = 64\n",
+-    "EPOCHS = 15\n",
+-    "LR = 2e-4"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 4,
+-   "metadata": {
+-    "colab": {
+-     "base_uri": "https://localhost:8080/"
+-    },
+-    "executionInfo": {
+-     "elapsed": 5049,
+-     "status": "ok",
+-     "timestamp": 1616048328481,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "VRZRaQuHgWvW",
+-    "outputId": "99668a6d-039d-4227-e0a5-1b635becf71e"
+-   },
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "Device:  cuda:0\n",
+-      "No. of Batches:  1875\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "# MNIST\n",
+-    "transform_m = transforms.Compose(\n",
+-    "    [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]\n",
+-    ")\n",
+-    "\n",
+-    "trainset_m = datasets.MNIST(\n",
+-    "    \"data/mnist\", train=True, download=False, transform=transform_m\n",
+-    ")\n",
+-    "trainloader_m = torch.utils.data.DataLoader(\n",
+-    "    trainset_m, batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=True\n",
+-    ")\n",
+-    "\n",
+-    "testset_m = datasets.MNIST(\n",
+-    "    \"data/mnist\", train=False, download=False, transform=transform_m\n",
+-    ")\n",
+-    "testloader_m = torch.utils.data.DataLoader(\n",
+-    "    testset_m, batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=True\n",
+-    ")\n",
+-    "\n",
+-    "# MNIST-M\n",
+-    "transform_mm = transforms.Compose(\n",
+-    "    [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]\n",
+-    ")\n",
+-    "\n",
+-    "DATA_DIR = \"data/mnist_m/processed/\"\n",
+-    "\n",
+-    "trainloader_mm = data_loader.fetch(\n",
+-    "    data_dir=os.path.join(DATA_DIR, \"mnist_m_train.pt\"),\n",
+-    "    batch_size=BATCH_SIZE,\n",
+-    "    transform=transform_mm,\n",
+-    "    shuffle=True,\n",
+-    "    num_workers=1,\n",
+-    "    pin_memory=True,\n",
+-    ")\n",
+-    "\n",
+-    "testloader_mm = data_loader.fetch(\n",
+-    "    data_dir=os.path.join(DATA_DIR, \"mnist_m_test.pt\"),\n",
+-    "    batch_size=BATCH_SIZE,\n",
+-    "    transform=transform_mm,\n",
+-    "    shuffle=True,\n",
+-    "    num_workers=1,\n",
+-    "    pin_memory=True,\n",
+-    ")\n",
+-    "\n",
+-    "net = GaninModel().to(device)\n",
+-    "\n",
+-    "criterion_l = nn.CrossEntropyLoss()\n",
+-    "criterion_d = nn.BCEWithLogitsLoss()\n",
+-    "optimizer = optim.Adam(net.parameters(), lr=LR)\n",
+-    "\n",
+-    "num_batches = min(len(trainloader_m), len(trainloader_mm))  # ~60000/batch_size\n",
+-    "print(\"No. of Batches: \", num_batches)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 5,
+-   "metadata": {
+-    "colab": {
+-     "base_uri": "https://localhost:8080/"
+-    },
+-    "executionInfo": {
+-     "elapsed": 5044,
+-     "status": "ok",
+-     "timestamp": 1616048328482,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "e5ho9dRaisl6",
+-    "outputId": "c7991653-93d8-4f63-8b30-059e98847c14"
+-   },
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "Tesla V100-SXM2-16GB\n",
+-      "Memory Allocated: (GB)\n",
+-      "Allocated:  0.0\n",
+-      "Cached:  0.0\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "if device.type == \"cuda\":\n",
+-    "    print(torch.cuda.get_device_name(0))\n",
+-    "    print(\"Memory Allocated: (GB)\")\n",
+-    "    print(\"Allocated: \", round(torch.cuda.memory_allocated(0) / 1024 ** 3, 1))\n",
+-    "    print(\"Cached: \", round(torch.cuda.memory_reserved(0) / 1024 ** 3, 1))"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 6,
+-   "metadata": {
+-    "colab": {
+-     "base_uri": "https://localhost:8080/"
+-    },
+-    "executionInfo": {
+-     "elapsed": 489036,
+-     "status": "ok",
+-     "timestamp": 1616048812480,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "FirNI_6hjNHw",
+-    "outputId": "220d621a-0459-4d6f-eefd-263507ce3568"
+-   },
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "alpha: 0.0\n",
+-      "Epoch: 0/15 Batch: 300/1875\n",
+-      "Total Loss: 2.290130376815796\n",
+-      "Label Loss: 0.917344868183136\n",
+-      "Domain Loss: 1.3727856874465942\n",
+-      "Epoch: 0/15 Batch: 600/1875\n",
+-      "Total Loss: 1.9377704858779907\n",
+-      "Label Loss: 0.5933164358139038\n",
+-      "Domain Loss: 1.3444538116455078\n",
+-      "Epoch: 0/15 Batch: 900/1875\n",
+-      "Total Loss: 1.7587906122207642\n",
+-      "Label Loss: 0.45895248651504517\n",
+-      "Domain Loss: 1.2998383045196533\n",
+-      "Epoch: 0/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.6209685802459717\n",
+-      "Label Loss: 0.38094764947891235\n",
+-      "Domain Loss: 1.2400199174880981\n",
+-      "Epoch: 0/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.50449538230896\n",
+-      "Label Loss: 0.33010706305503845\n",
+-      "Domain Loss: 1.174387812614441\n",
+-      "Epoch: 0/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4023813009262085\n",
+-      "Label Loss: 0.2956162989139557\n",
+-      "Domain Loss: 1.1067640781402588\n",
+-      "Test accuracy: 0.47783544659614563\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.32151273753163445\n",
+-      "Epoch: 1/15 Batch: 300/1875\n",
+-      "Total Loss: 1.341217279434204\n",
+-      "Label Loss: 0.13582591712474823\n",
+-      "Domain Loss: 1.2053916454315186\n",
+-      "Epoch: 1/15 Batch: 600/1875\n",
+-      "Total Loss: 1.3551908731460571\n",
+-      "Label Loss: 0.13277779519557953\n",
+-      "Domain Loss: 1.2224130630493164\n",
+-      "Epoch: 1/15 Batch: 900/1875\n",
+-      "Total Loss: 1.3481076955795288\n",
+-      "Label Loss: 0.12830081582069397\n",
+-      "Domain Loss: 1.2198063135147095\n",
+-      "Epoch: 1/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.3430759906768799\n",
+-      "Label Loss: 0.1273009032011032\n",
+-      "Domain Loss: 1.2157732248306274\n",
+-      "Epoch: 1/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.335483431816101\n",
+-      "Label Loss: 0.12459555268287659\n",
+-      "Domain Loss: 1.2108862400054932\n",
+-      "Epoch: 1/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.323436975479126\n",
+-      "Label Loss: 0.12233024835586548\n",
+-      "Domain Loss: 1.201104760169983\n",
+-      "Test accuracy: 0.6301916837692261\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.5827829453479101\n",
+-      "Epoch: 2/15 Batch: 300/1875\n",
+-      "Total Loss: 1.3783040046691895\n",
+-      "Label Loss: 0.12491244077682495\n",
+-      "Domain Loss: 1.2533918619155884\n",
+-      "Epoch: 2/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4287331104278564\n",
+-      "Label Loss: 0.13458657264709473\n",
+-      "Domain Loss: 1.2941465377807617\n",
+-      "Epoch: 2/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4459316730499268\n",
+-      "Label Loss: 0.14065484702587128\n",
+-      "Domain Loss: 1.3052763938903809\n",
+-      "Epoch: 2/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4383207559585571\n",
+-      "Label Loss: 0.13796959817409515\n",
+-      "Domain Loss: 1.3003511428833008\n",
+-      "Epoch: 2/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4197649955749512\n",
+-      "Label Loss: 0.1341903954744339\n",
+-      "Domain Loss: 1.2855758666992188\n",
+-      "Epoch: 2/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4162776470184326\n",
+-      "Label Loss: 0.13247047364711761\n",
+-      "Domain Loss: 1.2838096618652344\n",
+-      "Test accuracy: 0.7343250513076782\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.7615941559557646\n",
+-      "Epoch: 3/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4362866878509521\n",
+-      "Label Loss: 0.13580955564975739\n",
+-      "Domain Loss: 1.3004767894744873\n",
+-      "Epoch: 3/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4334101676940918\n",
+-      "Label Loss: 0.13770371675491333\n",
+-      "Domain Loss: 1.2957062721252441\n",
+-      "Epoch: 3/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4341435432434082\n",
+-      "Label Loss: 0.13766402006149292\n",
+-      "Domain Loss: 1.2964797019958496\n",
+-      "Epoch: 3/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.436957836151123\n",
+-      "Label Loss: 0.13589467108249664\n",
+-      "Domain Loss: 1.301063060760498\n",
+-      "Epoch: 3/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4322758913040161\n",
+-      "Label Loss: 0.1327666938304901\n",
+-      "Domain Loss: 1.29951012134552\n",
+-      "Epoch: 3/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.428133487701416\n",
+-      "Label Loss: 0.13095352053642273\n",
+-      "Domain Loss: 1.297181487083435\n",
+-      "Test accuracy: 0.8350638747215271\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.870061661742672\n",
+-      "Epoch: 4/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4242565631866455\n",
+-      "Label Loss: 0.12238282710313797\n",
+-      "Domain Loss: 1.3018743991851807\n",
+-      "Epoch: 4/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4327600002288818\n",
+-      "Label Loss: 0.12298014760017395\n",
+-      "Domain Loss: 1.309780240058899\n",
+-      "Epoch: 4/15 Batch: 900/1875\n",
+-      "Total Loss: 1.43337082862854\n",
+-      "Label Loss: 0.12159369885921478\n",
+-      "Domain Loss: 1.3117775917053223\n",
+-      "Epoch: 4/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.432814121246338\n",
+-      "Label Loss: 0.12244317680597305\n",
+-      "Domain Loss: 1.3103725910186768\n",
+-      "Epoch: 4/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4360753297805786\n",
+-      "Label Loss: 0.1233997792005539\n",
+-      "Domain Loss: 1.3126771450042725\n",
+-      "Epoch: 4/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4366084337234497\n",
+-      "Label Loss: 0.12275347858667374\n",
+-      "Domain Loss: 1.3138585090637207\n",
+-      "Test accuracy: 0.860223650932312\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9311096086675774\n",
+-      "Epoch: 5/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4616706371307373\n",
+-      "Label Loss: 0.13273654878139496\n",
+-      "Domain Loss: 1.3289350271224976\n",
+-      "Epoch: 5/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4491409063339233\n",
+-      "Label Loss: 0.12459166347980499\n",
+-      "Domain Loss: 1.3245497941970825\n",
+-      "Epoch: 5/15 Batch: 900/1875\n",
+-      "Total Loss: 1.432763695716858\n",
+-      "Label Loss: 0.1214686781167984\n",
+-      "Domain Loss: 1.3112950325012207\n",
+-      "Epoch: 5/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4206042289733887\n",
+-      "Label Loss: 0.11580074578523636\n",
+-      "Domain Loss: 1.3048042058944702\n",
+-      "Epoch: 5/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.419714331626892\n",
+-      "Label Loss: 0.11334536969661713\n",
+-      "Domain Loss: 1.3063700199127197\n",
+-      "Epoch: 5/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.420681357383728\n",
+-      "Label Loss: 0.1137363463640213\n",
+-      "Domain Loss: 1.3069452047348022\n",
+-      "Test accuracy: 0.8638178706169128\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9640275800758169\n",
+-      "Epoch: 6/15 Batch: 300/1875\n",
+-      "Total Loss: 1.425322413444519\n",
+-      "Label Loss: 0.11203164607286453\n",
+-      "Domain Loss: 1.3132903575897217\n",
+-      "Epoch: 6/15 Batch: 600/1875\n",
+-      "Total Loss: 1.424358606338501\n",
+-      "Label Loss: 0.11038116365671158\n",
+-      "Domain Loss: 1.3139774799346924\n",
+-      "Epoch: 6/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4229923486709595\n",
+-      "Label Loss: 0.1085486188530922\n",
+-      "Domain Loss: 1.3144450187683105\n",
+-      "Epoch: 6/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4227685928344727\n",
+-      "Label Loss: 0.1077718734741211\n",
+-      "Domain Loss: 1.3149967193603516\n",
+-      "Epoch: 6/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4228826761245728\n",
+-      "Label Loss: 0.1092129796743393\n",
+-      "Domain Loss: 1.313670039176941\n",
+-      "Epoch: 6/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.426303505897522\n",
+-      "Label Loss: 0.11192400008440018\n",
+-      "Domain Loss: 1.314379334449768\n",
+-      "Test accuracy: 0.8740015625953674\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9813680813098666\n",
+-      "Epoch: 7/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4078123569488525\n",
+-      "Label Loss: 0.09735996276140213\n",
+-      "Domain Loss: 1.3104517459869385\n",
+-      "Epoch: 7/15 Batch: 600/1875\n",
+-      "Total Loss: 1.414515495300293\n",
+-      "Label Loss: 0.10211539268493652\n",
+-      "Domain Loss: 1.3123984336853027\n",
+-      "Epoch: 7/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4209940433502197\n",
+-      "Label Loss: 0.10599465668201447\n",
+-      "Domain Loss: 1.314998984336853\n",
+-      "Epoch: 7/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.430003046989441\n",
+-      "Label Loss: 0.11234591156244278\n",
+-      "Domain Loss: 1.3176573514938354\n",
+-      "Epoch: 7/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.424614429473877\n",
+-      "Label Loss: 0.11053333431482315\n",
+-      "Domain Loss: 1.314081072807312\n",
+-      "Epoch: 7/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4219703674316406\n",
+-      "Label Loss: 0.10915663838386536\n",
+-      "Domain Loss: 1.3128129243850708\n",
+-      "Test accuracy: 0.8600239753723145\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9903904942256809\n",
+-      "Epoch: 8/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4187581539154053\n",
+-      "Label Loss: 0.10418228805065155\n",
+-      "Domain Loss: 1.3145755529403687\n",
+-      "Epoch: 8/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4153746366500854\n",
+-      "Label Loss: 0.1041695699095726\n",
+-      "Domain Loss: 1.311204195022583\n",
+-      "Epoch: 8/15 Batch: 900/1875\n",
+-      "Total Loss: 1.420531988143921\n",
+-      "Label Loss: 0.10684911161661148\n",
+-      "Domain Loss: 1.313682198524475\n",
+-      "Epoch: 8/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4236462116241455\n",
+-      "Label Loss: 0.10875337570905685\n",
+-      "Domain Loss: 1.3148940801620483\n",
+-      "Epoch: 8/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.423635721206665\n",
+-      "Label Loss: 0.10831703245639801\n",
+-      "Domain Loss: 1.3153184652328491\n",
+-      "Epoch: 8/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.423907995223999\n",
+-      "Label Loss: 0.10688627511262894\n",
+-      "Domain Loss: 1.3170208930969238\n",
+-      "Test accuracy: 0.856829047203064\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9950547536867307\n",
+-      "Epoch: 9/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4106354713439941\n",
+-      "Label Loss: 0.09637326002120972\n",
+-      "Domain Loss: 1.314261794090271\n",
+-      "Epoch: 9/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4156935214996338\n",
+-      "Label Loss: 0.10183528810739517\n",
+-      "Domain Loss: 1.3138571977615356\n",
+-      "Epoch: 9/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4160906076431274\n",
+-      "Label Loss: 0.10220345109701157\n",
+-      "Domain Loss: 1.3138861656188965\n",
+-      "Epoch: 9/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4164824485778809\n",
+-      "Label Loss: 0.10127642005681992\n",
+-      "Domain Loss: 1.3152053356170654\n",
+-      "Epoch: 9/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4179269075393677\n",
+-      "Label Loss: 0.10200860351324081\n",
+-      "Domain Loss: 1.3159180879592896\n",
+-      "Epoch: 9/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4191813468933105\n",
+-      "Label Loss: 0.10274633765220642\n",
+-      "Domain Loss: 1.3164349794387817\n",
+-      "Test accuracy: 0.8722044825553894\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9974579674738373\n",
+-      "Epoch: 10/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4243245124816895\n",
+-      "Label Loss: 0.09832103550434113\n",
+-      "Domain Loss: 1.3260027170181274\n",
+-      "Epoch: 10/15 Batch: 600/1875\n",
+-      "Total Loss: 1.417030930519104\n",
+-      "Label Loss: 0.09395840018987656\n",
+-      "Domain Loss: 1.323072910308838\n",
+-      "Epoch: 10/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4120569229125977\n",
+-      "Label Loss: 0.09331472218036652\n",
+-      "Domain Loss: 1.3187440633773804\n",
+-      "Epoch: 10/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4124658107757568\n",
+-      "Label Loss: 0.0947560966014862\n",
+-      "Domain Loss: 1.3177111148834229\n",
+-      "Epoch: 10/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4134876728057861\n",
+-      "Label Loss: 0.09663330763578415\n",
+-      "Domain Loss: 1.3168556690216064\n",
+-      "Epoch: 10/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4179774522781372\n",
+-      "Label Loss: 0.09770363569259644\n",
+-      "Domain Loss: 1.3202728033065796\n",
+-      "Test accuracy: 0.8918730020523071\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9986940693248945\n",
+-      "Epoch: 11/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4122439622879028\n",
+-      "Label Loss: 0.09653577208518982\n",
+-      "Domain Loss: 1.3157075643539429\n",
+-      "Epoch: 11/15 Batch: 600/1875\n",
+-      "Total Loss: 1.41316556930542\n",
+-      "Label Loss: 0.0956803411245346\n",
+-      "Domain Loss: 1.317483901977539\n",
+-      "Epoch: 11/15 Batch: 900/1875\n",
+-      "Total Loss: 1.414771318435669\n",
+-      "Label Loss: 0.09869302809238434\n",
+-      "Domain Loss: 1.316078782081604\n",
+-      "Epoch: 11/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4127357006072998\n",
+-      "Label Loss: 0.09669353067874908\n",
+-      "Domain Loss: 1.3160423040390015\n",
+-      "Epoch: 11/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4133883714675903\n",
+-      "Label Loss: 0.09738610684871674\n",
+-      "Domain Loss: 1.3160006999969482\n",
+-      "Epoch: 11/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4147570133209229\n",
+-      "Label Loss: 0.09798695892095566\n",
+-      "Domain Loss: 1.316767692565918\n",
+-      "Test accuracy: 0.8533346652984619\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9993292997390673\n",
+-      "Epoch: 12/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4246091842651367\n",
+-      "Label Loss: 0.09839818626642227\n",
+-      "Domain Loss: 1.3262114524841309\n",
+-      "Epoch: 12/15 Batch: 600/1875\n",
+-      "Total Loss: 1.4282225370407104\n",
+-      "Label Loss: 0.0984192043542862\n",
+-      "Domain Loss: 1.3298040628433228\n",
+-      "Epoch: 12/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4288808107376099\n",
+-      "Label Loss: 0.09982039779424667\n",
+-      "Domain Loss: 1.32906174659729\n",
+-      "Epoch: 12/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4269146919250488\n",
+-      "Label Loss: 0.09861067682504654\n",
+-      "Domain Loss: 1.3283053636550903\n",
+-      "Epoch: 12/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4264482259750366\n",
+-      "Label Loss: 0.09869123250246048\n",
+-      "Domain Loss: 1.3277578353881836\n",
+-      "Epoch: 12/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4254741668701172\n",
+-      "Label Loss: 0.09811674803495407\n",
+-      "Domain Loss: 1.3273590803146362\n",
+-      "Test accuracy: 0.865015983581543\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9996555948057622\n",
+-      "Epoch: 13/15 Batch: 300/1875\n",
+-      "Total Loss: 1.423453688621521\n",
+-      "Label Loss: 0.10296039283275604\n",
+-      "Domain Loss: 1.3204926252365112\n",
+-      "Epoch: 13/15 Batch: 600/1875\n",
+-      "Total Loss: 1.405997395515442\n",
+-      "Label Loss: 0.090514175593853\n",
+-      "Domain Loss: 1.3154826164245605\n",
+-      "Epoch: 13/15 Batch: 900/1875\n",
+-      "Total Loss: 1.405835509300232\n",
+-      "Label Loss: 0.09155548363924026\n",
+-      "Domain Loss: 1.3142796754837036\n",
+-      "Epoch: 13/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4070887565612793\n",
+-      "Label Loss: 0.09084344655275345\n",
+-      "Domain Loss: 1.3162449598312378\n",
+-      "Epoch: 13/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4138853549957275\n",
+-      "Label Loss: 0.09369557350873947\n",
+-      "Domain Loss: 1.320189356803894\n",
+-      "Epoch: 13/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4135944843292236\n",
+-      "Label Loss: 0.09461561590433121\n",
+-      "Domain Loss: 1.3189802169799805\n",
+-      "Test accuracy: 0.8398562073707581\n",
+-      "\n",
+-      "\n",
+-      "alpha: 0.9998231616599622\n",
+-      "Epoch: 14/15 Batch: 300/1875\n",
+-      "Total Loss: 1.4433118104934692\n",
+-      "Label Loss: 0.10152864456176758\n",
+-      "Domain Loss: 1.3417834043502808\n",
+-      "Epoch: 14/15 Batch: 600/1875\n",
+-      "Total Loss: 1.429481029510498\n",
+-      "Label Loss: 0.09620000422000885\n",
+-      "Domain Loss: 1.333280324935913\n",
+-      "Epoch: 14/15 Batch: 900/1875\n",
+-      "Total Loss: 1.4246606826782227\n",
+-      "Label Loss: 0.0973743125796318\n",
+-      "Domain Loss: 1.3272857666015625\n",
+-      "Epoch: 14/15 Batch: 1200/1875\n",
+-      "Total Loss: 1.4207850694656372\n",
+-      "Label Loss: 0.09577928483486176\n",
+-      "Domain Loss: 1.325005292892456\n",
+-      "Epoch: 14/15 Batch: 1500/1875\n",
+-      "Total Loss: 1.4235402345657349\n",
+-      "Label Loss: 0.09665150940418243\n",
+-      "Domain Loss: 1.3268879652023315\n",
+-      "Epoch: 14/15 Batch: 1800/1875\n",
+-      "Total Loss: 1.4199292659759521\n",
+-      "Label Loss: 0.09537874907255173\n",
+-      "Domain Loss: 1.3245508670806885\n",
+-      "Test accuracy: 0.8674121499061584\n",
+-      "\n",
+-      "\n",
+-      "Training Time for 15 epochs: 0:08:04.001516\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "test_accuracy = []\n",
+-    "start_time = datetime.now()\n",
+-    "\n",
+-    "for epoch in range(EPOCHS):\n",
+-    "\n",
+-    "    running_loss_total = 0\n",
+-    "    running_loss_l = 0\n",
+-    "    running_loss_d = 0\n",
+-    "\n",
+-    "    dataiter_mm = iter(trainloader_mm)\n",
+-    "    dataiter_m = iter(trainloader_m)\n",
+-    "    alpha = (2 / (1 + np.exp(-10 * ((epoch + 0.0) / EPOCHS)))) - 1\n",
+-    "    print(f\"alpha: {alpha}\")\n",
+-    "\n",
+-    "    net.train()\n",
+-    "    for batch in range(1, num_batches + 1):\n",
+-    "        loss_total = 0\n",
+-    "        loss_d = 0\n",
+-    "        loss_l = 0\n",
+-    "\n",
+-    "        optimizer.zero_grad()\n",
+-    "        # for source domain\n",
+-    "        imgs, lbls = dataiter_m.next()\n",
+-    "        imgs, lbls = imgs.to(device), lbls.to(device)\n",
+-    "        imgs = torch.cat((imgs, imgs, imgs), 1)\n",
+-    "\n",
+-    "        # with torch.cuda.amp.autocast():\n",
+-    "        out_l, out_d = net(imgs, alpha)\n",
+-    "        loss_l_src = criterion_l(out_l, lbls)\n",
+-    "        actual_d = torch.zeros(out_d.shape).to(device)\n",
+-    "        loss_d_src = criterion_d(out_d, actual_d)\n",
+-    "\n",
+-    "        # for target domain\n",
+-    "        imgs, lbls = dataiter_mm.next()\n",
+-    "        imgs = imgs.to(device)\n",
+-    "\n",
+-    "        # with torch.cuda.amp.autocast():\n",
+-    "        _, out_d = net(imgs, alpha)\n",
+-    "        actual_d = torch.ones(out_d.shape).to(device)\n",
+-    "        loss_d_tgt = criterion_d(out_d, actual_d)\n",
+-    "\n",
+-    "        loss_total = loss_d_src + loss_l_src + loss_d_tgt\n",
+-    "        loss_total.backward()\n",
+-    "        optimizer.step()\n",
+-    "\n",
+-    "        running_loss_total += loss_total\n",
+-    "        running_loss_d += loss_d_src + loss_d_tgt\n",
+-    "        running_loss_l += loss_l_src\n",
+-    "\n",
+-    "        if batch % 300 == 0:\n",
+-    "            print(f\"Epoch: {epoch}/{EPOCHS} Batch: {batch}/{num_batches}\")\n",
+-    "            print(f\"Total Loss: {running_loss_total/batch}\")\n",
+-    "        #   print(f\"Label Loss: {running_loss_l/batch}\")\n",
+-    "        #   print(f\"Domain Loss: {running_loss_d/batch}\")\n",
+-    "\n",
+-    "    net.eval()\n",
+-    "    test_loss = 0\n",
+-    "    accuracy = 0\n",
+-    "\n",
+-    "    with torch.no_grad():\n",
+-    "        net.eval()\n",
+-    "        for imgs, lbls in testloader_mm:\n",
+-    "            imgs, lbls = imgs.to(device), lbls.to(device)\n",
+-    "            # print(imgs.shape)\n",
+-    "            # print(lbls.shape)\n",
+-    "\n",
+-    "            logits, _ = net(imgs, alpha=0)\n",
+-    "            # print(logits.shape)\n",
+-    "            test_loss += criterion_l(logits, lbls)\n",
+-    "\n",
+-    "            # derive which class index corresponds to max value\n",
+-    "            preds_l = torch.max(logits, dim=1)[\n",
+-    "                1\n",
+-    "            ]  # [1]: indices(class) corresponding to max values\n",
+-    "            equals = torch.eq(preds_l, lbls)  # count no. of correct class predictions\n",
+-    "            accuracy += torch.mean(equals.float())\n",
+-    "\n",
+-    "    test_accuracy.append(accuracy / len(testloader_mm))\n",
+-    "    print(f\"Test accuracy: {accuracy / len(testloader_mm)}\")\n",
+-    "    print(\"\\n\")\n",
+-    "\n",
+-    "end_time = datetime.now()\n",
+-    "duration = end_time - start_time\n",
+-    "print(f\"Training Time for {EPOCHS} epochs: {duration}\")"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 6,
+-   "metadata": {
+-    "executionInfo": {
+-     "elapsed": 489031,
+-     "status": "ok",
+-     "timestamp": 1616048812481,
+-     "user": {
+-      "displayName": "Nishant Yadav",
+-      "photoUrl": "",
+-      "userId": "02529691709873630386"
+-     },
+-     "user_tz": 420
+-    },
+-    "id": "8jNDPvXe1CBK"
+-   },
+-   "outputs": [],
+-   "source": []
+-  }
+- ],
+- "metadata": {
+-  "accelerator": "GPU",
+-  "colab": {
+-   "collapsed_sections": [],
+-   "name": "train_ganin.ipynb",
+-   "provenance": []
+-  },
+-  "kernelspec": {
+-   "display_name": "Python 3",
+-   "language": "python",
+-   "name": "python3"
+-  },
+-  "language_info": {
+-   "codemirror_mode": {
+-    "name": "ipython",
+-    "version": 3
+-   },
+-   "file_extension": ".py",
+-   "mimetype": "text/x-python",
+-   "name": "python",
+-   "nbconvert_exporter": "python",
+-   "pygments_lexer": "ipython3",
+-   "version": "3.8.2"
+-  }
+- },
+- "nbformat": 4,
+- "nbformat_minor": 4
+-}
+\ No newline at end of file
+diff --git a/notebooks/train_sankar.ipynb b/notebooks/train_sankar.ipynb
+deleted file mode 100644
+index 0e976ba..0000000
+--- a/notebooks/train_sankar.ipynb
++++ /dev/null
+@@ -1,559 +0,0 @@
+-{
+- "cells": [
+-  {
+-   "cell_type": "code",
+-   "execution_count": 1,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "import sys\n",
+-    "sys.path.append(\"../\")\n",
+-    "\n",
+-    "import os\n",
+-    "import torch\n",
+-    "import torch.nn as nn\n",
+-    "import torch.optim as optim\n",
+-    "from torchvision import datasets, transforms\n",
+-    "\n",
+-    "import data_loader\n",
+-    "from models.sankar import *\n",
+-    "import utils"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 2,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "'/Users/nishant/Desktop/Spring 2021/NASA-Intern/Codes/nishant-trials'"
+-      ]
+-     },
+-     "execution_count": 2,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "os.getcwd()"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 12,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "# Hyperparameters\n",
+-    "IMG_SIZE = 28\n",
+-    "BATCH_SIZE = 1024\n",
+-    "EPOCHS = 2\n",
+-    "LR = 2e-3\n",
+-    "\n",
+-    "N_CLASSES = 10\n",
+-    "NUM_FILTERS_DISC = 64\n",
+-    "NUM_FILTERS_GEN = 64\n",
+-    "Z_DIM = 512\n",
+-    "N_DIM = 2 * NUM_FILTERS_DISC\n",
+-    "\n",
+-    "ADV_WEIGHT = 0.1\n",
+-    "ALPHA = 0.3\n",
+-    "\n",
+-    "device = torch.device(\"cuda:0\" if torch.cuda.is_available() else \"cpu\")"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 13,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "# MNIST\n",
+-    "transform_m = transforms.Compose(\n",
+-    "    [transforms.Resize(32), transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]\n",
+-    ")\n",
+-    "\n",
+-    "trainset_m = datasets.MNIST(\n",
+-    "    \"./data/mnist\", train=True, download=False, transform=transform_m\n",
+-    ")\n",
+-    "trainloader_m = torch.utils.data.DataLoader(\n",
+-    "    trainset_m, batch_size=BATCH_SIZE, shuffle=True\n",
+-    ")\n",
+-    "\n",
+-    "testset_m = datasets.MNIST(\n",
+-    "    \"./data/mnist\", train=False, download=False, transform=transform_m\n",
+-    ")\n",
+-    "testloader_m = torch.utils.data.DataLoader(\n",
+-    "    testset_m, batch_size=BATCH_SIZE, shuffle=True\n",
+-    ")\n",
+-    "\n",
+-    "# MNIST-M\n",
+-    "transform_mm = transforms.Compose(\n",
+-    "    [transforms.Resize(32), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]\n",
+-    ")\n",
+-    "\n",
+-    "DATA_DIR = \"data/mnist_m/processed/\"\n",
+-    "\n",
+-    "trainloader_mm = data_loader.fetch(\n",
+-    "    data_dir=os.path.join(DATA_DIR, \"mnist_m_train.pt\"),\n",
+-    "    batch_size=BATCH_SIZE,\n",
+-    "    shuffle=True,\n",
+-    "    transform=transform_mm,\n",
+-    ")\n",
+-    "\n",
+-    "testloader_mm = data_loader.fetch(\n",
+-    "    data_dir=os.path.join(DATA_DIR, \"mnist_m_test.pt\"),\n",
+-    "    batch_size=BATCH_SIZE,\n",
+-    "    shuffle=False,\n",
+-    "    transform=transform_mm,\n",
+-    ")"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 14,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "59"
+-      ]
+-     },
+-     "execution_count": 14,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "num_batches = min(len(trainloader_m), len(trainloader_mm)) # ~60000/batch_size\n",
+-    "num_batches"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 15,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "net_G = Generator(N_DIM, Z_DIM, N_CLASSES, NUM_FILTERS_GEN).to(device)\n",
+-    "net_D = Discriminator(N_CLASSES, NUM_FILTERS_DISC).to(device)\n",
+-    "net_F = FeatureExtractor(NUM_FILTERS_DISC).to(device)\n",
+-    "net_C = ClassifierNet(NUM_FILTERS_DISC, N_CLASSES).to(device)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 16,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "ClassifierNet(\n",
+-       "  (classifier): Sequential(\n",
+-       "    (0): Linear(in_features=128, out_features=128, bias=True)\n",
+-       "    (1): ReLU()\n",
+-       "    (2): Linear(in_features=128, out_features=10, bias=True)\n",
+-       "  )\n",
+-       ")"
+-      ]
+-     },
+-     "execution_count": 16,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "net_G.apply(utils.weights_init)\n",
+-    "net_D.apply(utils.weights_init)\n",
+-    "net_F.apply(utils.weights_init)\n",
+-    "net_C.apply(utils.weights_init)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 17,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "optimizer_D = optim.Adam(net_D.parameters(), lr=LR)\n",
+-    "optimizer_G = optim.Adam(net_G.parameters(), lr=LR)\n",
+-    "optimizer_F = optim.Adam(net_F.parameters(), lr=LR)\n",
+-    "optimizer_C = optim.Adam(net_C.parameters(), lr=LR)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 18,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "criterion_classifier = nn.CrossEntropyLoss()\n",
+-    "criterion_domain = nn.BCELoss()"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 19,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "torch.Size([1024])\n",
+-      "torch.Size([1024])\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "real_labels = torch.ones(BATCH_SIZE).to(device)\n",
+-    "fake_labels = torch.zeros(BATCH_SIZE).to(device)\n",
+-    "\n",
+-    "print(real_labels.shape)\n",
+-    "print(fake_labels.shape)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 20,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "epoch: 1\n",
+-      "batch: 1\n"
+-     ]
+-    },
+-    {
+-     "ename": "KeyboardInterrupt",
+-     "evalue": "",
+-     "output_type": "error",
+-     "traceback": [
+-      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+-      "\u001b[0;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)",
+-      "\u001b[0;32m<ipython-input-20-792b115fd497>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[1;32m     62\u001b[0m         )\n\u001b[1;32m     63\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 64\u001b[0;31m         \u001b[0mloss_D\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbackward\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mretain_graph\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mTrue\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     65\u001b[0m         \u001b[0moptimizer_D\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mstep\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     66\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+-      "\u001b[0;32m~/opt/miniconda3/envs/ptenv/lib/python3.8/site-packages/torch/tensor.py\u001b[0m in \u001b[0;36mbackward\u001b[0;34m(self, gradient, retain_graph, create_graph)\u001b[0m\n\u001b[1;32m    219\u001b[0m                 \u001b[0mretain_graph\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mretain_graph\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    220\u001b[0m                 create_graph=create_graph)\n\u001b[0;32m--> 221\u001b[0;31m         \u001b[0mtorch\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mautograd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbackward\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mgradient\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mretain_graph\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcreate_graph\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    222\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    223\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0mregister_hook\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mhook\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+-      "\u001b[0;32m~/opt/miniconda3/envs/ptenv/lib/python3.8/site-packages/torch/autograd/__init__.py\u001b[0m in \u001b[0;36mbackward\u001b[0;34m(tensors, grad_tensors, retain_graph, create_graph, grad_variables)\u001b[0m\n\u001b[1;32m    128\u001b[0m         \u001b[0mretain_graph\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcreate_graph\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    129\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 130\u001b[0;31m     Variable._execution_engine.run_backward(\n\u001b[0m\u001b[1;32m    131\u001b[0m         \u001b[0mtensors\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mgrad_tensors_\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mretain_graph\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcreate_graph\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    132\u001b[0m         allow_unreachable=True)  # allow_unreachable flag\n",
+-      "\u001b[0;31mKeyboardInterrupt\u001b[0m: "
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "torch.autograd.set_detect_anomaly(True)\n",
+-    "\n",
+-    "for epoch in range(EPOCHS):\n",
+-    "    print(f\"epoch: {epoch+1}\")\n",
+-    "\n",
+-    "    net_D.train()\n",
+-    "    net_G.train()\n",
+-    "    net_F.train()\n",
+-    "    net_C.train()\n",
+-    "\n",
+-    "    for i, (data_source, data_target) in enumerate(zip(trainloader_m, trainloader_mm)):\n",
+-    "        print(f\"batch: {i+1}\")\n",
+-    "\n",
+-    "        src_inputs, src_labels = data_source\n",
+-    "        tgt_inputs, _ = data_target\n",
+-    "\n",
+-    "        src_inputs = src_inputs.expand(src_inputs.shape[0], 3, 32, 32)\n",
+-    "\n",
+-    "        src_inputs, src_labels = src_inputs.to(device), src_labels.to(device)\n",
+-    "        tgt_inputs = tgt_inputs.to(device)\n",
+-    "\n",
+-    "        # Creating one-hot vectors\n",
+-    "        src_labels_onehot = torch.zeros(BATCH_SIZE, N_CLASSES + 1).to(device)\n",
+-    "        tgt_labels_onehot = torch.zeros(BATCH_SIZE, N_CLASSES + 1).to(device)\n",
+-    "\n",
+-    "        for num in range(BATCH_SIZE):\n",
+-    "            src_labels_onehot[num, int(src_labels[num])] = 1\n",
+-    "            tgt_labels_onehot[num, N_CLASSES] = 1\n",
+-    "\n",
+-    "        # Updating Discriminator net_D\n",
+-    "        net_D.zero_grad()\n",
+-    "        src_embeddings = net_F(src_inputs)  # [-1, 128]\n",
+-    "        src_noise = noise = torch.randn(BATCH_SIZE, Z_DIM)\n",
+-    "        src_concat = torch.cat((src_embeddings, src_labels_onehot, src_noise), 1)\n",
+-    "        src_gen = net_G(src_concat.detach())\n",
+-    "\n",
+-    "        tgt_embeddings = net_F(tgt_inputs)\n",
+-    "        tgt_noise = noise = torch.randn(BATCH_SIZE, Z_DIM)\n",
+-    "        tgt_concat = torch.cat((tgt_embeddings, src_labels_onehot, src_noise), 1)\n",
+-    "        tgt_gen = net_G(tgt_concat.detach())\n",
+-    "\n",
+-    "        src_D_domain_real, src_D_classes_real = net_D(src_inputs)\n",
+-    "\n",
+-    "        loss_src_D_domain_real = criterion_domain(src_D_domain_real, real_labels)\n",
+-    "        loss_src_D_classes_real = criterion_classifier(src_D_classes_real, src_labels)\n",
+-    "\n",
+-    "        src_D_domain_gen_fake, src_D_classes_gen_fake = net_D(src_gen.detach())\n",
+-    "        loss_src_D_domain_gen_fake = criterion_domain(\n",
+-    "            src_D_domain_gen_fake, fake_labels\n",
+-    "        )\n",
+-    "\n",
+-    "        tgt_D_domain_gen_fake, _ = net_D(tgt_gen.detach())\n",
+-    "        loss_tgt_D_domain_gen_fake = criterion_domain(\n",
+-    "            tgt_D_domain_gen_fake, fake_labels\n",
+-    "        )\n",
+-    "\n",
+-    "        loss_D = (\n",
+-    "            loss_src_D_domain_real\n",
+-    "            + loss_src_D_classes_real\n",
+-    "            + loss_src_D_domain_gen_fake\n",
+-    "            + loss_tgt_D_domain_gen_fake\n",
+-    "        )\n",
+-    "\n",
+-    "        loss_D.backward(retain_graph=True)\n",
+-    "        optimizer_D.step()\n",
+-    "\n",
+-    "        # Recompute net_D after gradient update\n",
+-    "        src_D_domain_gen_fake, src_D_classes_gen_fake = net_D(src_gen)\n",
+-    "        tgt_D_domain_gen_fake, _ = net_D(tgt_gen)\n",
+-    "\n",
+-    "        # Updating Generator net_G\n",
+-    "        net_G.zero_grad()\n",
+-    "\n",
+-    "        loss_G_domain = criterion_domain(src_D_domain_gen_fake, real_labels)\n",
+-    "        loss_G_classes = criterion_classifier(src_D_classes_gen_fake, src_labels)\n",
+-    "        loss_G = loss_G_domain + loss_G_classes\n",
+-    "\n",
+-    "        loss_G.backward(retain_graph=True)\n",
+-    "        #optimizer_G.step()\n",
+-    "\n",
+-    "        # Update Classifier net C\n",
+-    "        net_C.zero_grad()\n",
+-    "\n",
+-    "        output_C = net_C(src_embeddings)\n",
+-    "        loss_C = criterion_classifier(output_C, src_labels)\n",
+-    "\n",
+-    "        loss_C.backward(retain_graph=True)\n",
+-    "        #optimizer_C.step()\n",
+-    "\n",
+-    "        # Update Feature Extractor F\n",
+-    "        net_F.zero_grad()\n",
+-    "\n",
+-    "        loss_F_src = ADV_WEIGHT * criterion_classifier(\n",
+-    "            src_D_classes_gen_fake, src_labels\n",
+-    "        )\n",
+-    "        loss_F_tgt = (\n",
+-    "            ADV_WEIGHT * ALPHA * criterion_domain(tgt_D_domain_gen_fake, real_labels)\n",
+-    "        )\n",
+-    "\n",
+-    "        loss_F = loss_C + loss_F_src + loss_F_tgt\n",
+-    "        \n",
+-    "#         print(loss_F)\n",
+-    "\n",
+-    "        loss_F.backward()\n",
+-    "\n",
+-    "        optimizer_G.step()\n",
+-    "        optimizer_C.step()\n",
+-    "        optimizer_F.step()\n",
+-    "        \n",
+-    "        running_loss_total += loss_C\n",
+-    "\n",
+-    "        if i % 300 == 0:\n",
+-    "          print(f\"Epoch: {epoch}/{EPOCHS} Batch: {i}/{num_batches}\")\n",
+-    "          print(f\"Classifier Training Loss: {running_loss_total/batch}\")\n",
+-    "          \n",
+-    "\n",
+-    "\n",
+-    "    net.eval()\n",
+-    "    test_loss = 0 \n",
+-    "    accuracy = 0\n",
+-    "\n",
+-    "    with torch.no_grad():\n",
+-    "            net.eval()\n",
+-    "            for imgs, lbls in testloader_mm:\n",
+-    "                imgs, lbls = imgs.to(device), lbls.to(device)\n",
+-    "                #print(logits.shape,lbls.shape)\n",
+-    "                logits, _ = net_C(imgs, lamda)\n",
+-    "                #print(logits.shape)\n",
+-    "                #print(lbls.shape)\n",
+-    "                #lbls = lbls.view(*logits.shape)\n",
+-    "                #print(logits.shape,lbls.shape)\n",
+-    "                test_loss += criterion_l(logits, lbls)\n",
+-    "\n",
+-    "                #logits to probabilities using softmax\n",
+-    "                ps = torch.exp(logits) / (torch.sum(torch.exp(logits)))\n",
+-    "                top_p, top_class = ps.topk(1, dim=1)\n",
+-    "                #print(top_p.shape, top_class.shape)\n",
+-    "                equals = top_class == lbls.view(*top_class.shape)\n",
+-    "                #print(top_class,lbls.view(*top_class.shape))\n",
+-    "                accuracy += torch.mean(equals.float())\n",
+-    "\n",
+-    "    test_accuracy.append(accuracy / len(testloader_mm))\n",
+-    "    print(f\"Test accuracy: {accuracy / len(testloader_mm)}\")\n",
+-    "    print(\"\\n\")\n",
+-    "\n",
+-    "        \n",
+-    "        \n",
+-    "        "
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 49,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "# from torchviz import *\n",
+-    "\n",
+-    "# make_dot(y.mean(), params=dict(model.named_parameters()))"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 53,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "dict_keys(['__header__', '__version__', '__globals__', 'data'])"
+-      ]
+-     },
+-     "execution_count": 53,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "# from scipy.io import loadmat\n",
+-    "# x = loadmat('data/USPS_all.mat')\n",
+-    "# x.keys()"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 57,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "(256, 1100, 10)"
+-      ]
+-     },
+-     "execution_count": 57,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "# x['data'].shape"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 99,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": [
+-    "# y = x['data'][:,141,1].reshape(16,16)\n",
+-    "# y = y.T\n"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 100,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "<matplotlib.image.AxesImage at 0x7ff8f94560a0>"
+-      ]
+-     },
+-     "execution_count": 100,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    },
+-    {
+-     "data": {
+-      "image/png": "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\n",
+-      "text/plain": [
+-       "<Figure size 432x288 with 1 Axes>"
+-      ]
+-     },
+-     "metadata": {
+-      "needs_background": "light"
+-     },
+-     "output_type": "display_data"
+-    }
+-   ],
+-   "source": [
+-    "# import matplotlib.pyplot as plt\n",
+-    "\n",
+-    "# plt.imshow(y)"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  }
+- ],
+- "metadata": {
+-  "kernelspec": {
+-   "display_name": "Python 3",
+-   "language": "python",
+-   "name": "python3"
+-  },
+-  "language_info": {
+-   "codemirror_mode": {
+-    "name": "ipython",
+-    "version": 3
+-   },
+-   "file_extension": ".py",
+-   "mimetype": "text/x-python",
+-   "name": "python",
+-   "nbconvert_exporter": "python",
+-   "pygments_lexer": "ipython3",
+-   "version": "3.8.2"
+-  }
+- },
+- "nbformat": 4,
+- "nbformat_minor": 4
+-}
+\ No newline at end of file
+diff --git a/train.py b/train.py
+deleted file mode 100644
+index 64923de..0000000
+--- a/train.py
++++ /dev/null
+@@ -1,83 +0,0 @@
+-from datetime import datetime
+-import torch
+-import torch.nn as nn
+-import torch.optim as optim
+-
+-from datasets import mnist, mnist_m
+-

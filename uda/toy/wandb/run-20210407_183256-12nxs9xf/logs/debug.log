@@ -1,0 +1,10 @@
+2021-04-07 18:32:56,210 INFO    MainThread:58 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-07 18:32:56,211 INFO    MainThread:58 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-07 18:32:56,211 INFO    MainThread:58 [wandb_setup.py:_flush():69] setting login settings: {'api_key': 'dcb8ac7a781f96dc607fa3bdcb344b4ea8af6066'}
+2021-04-07 18:32:56,212 INFO    MainThread:58 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/MyDrive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210407_183256-12nxs9xf/logs/debug.log
+2021-04-07 18:32:56,212 INFO    MainThread:58 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/MyDrive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210407_183256-12nxs9xf/logs/debug-internal.log
+2021-04-07 18:32:56,213 INFO    MainThread:58 [wandb_init.py:_jupyter_setup():287] configuring jupyter hooks <wandb.sdk.wandb_init._WandbInit object at 0x7f53cd8e4a10>
+2021-04-07 18:32:56,213 INFO    MainThread:58 [wandb_init.py:init():369] calling init triggers
+2021-04-07 18:32:56,213 INFO    MainThread:58 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 15, 'batch_size': 64, 'learning_rate': 0.0002, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-07 18:33:01,689 INFO    MainThread:58 [wandb_watch.py:watch():39] Watching

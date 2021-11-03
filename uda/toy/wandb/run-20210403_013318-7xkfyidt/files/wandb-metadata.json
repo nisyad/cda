@@ -1,0 +1,26 @@
+{
+    "os": "Linux-4.19.112+-x86_64-with-Ubuntu-18.04-bionic",
+    "python": "3.7.10",
+    "heartbeatAt": "2021-04-03T01:33:21.251753",
+    "startedAt": "2021-04-03T01:33:18.110135",
+    "docker": null,
+    "gpu": "Tesla P100-PCIE-16GB",
+    "gpu_count": 1,
+    "cpu_count": 2,
+    "cuda": "11.0.228",
+    "args": [
+        "-f",
+        "/root/.local/share/jupyter/runtime/kernel-9d4c9922-86b9-42e5-9b36-98d095aa7615.json"
+    ],
+    "state": "running",
+    "program": "train_simple_classifier.ipynb",
+    "root": "/content/drive/MyDrive/Colab Notebooks/NASA_Transfer_Learning",
+    "git": {
+        "remote": "https://github.com/nisyad/unsupervised-domain-adatation.git",
+        "commit": "ba2380416be344388295d0a860ce3901be69e2a9"
+    },
+    "email": null,
+    "host": "98ff7020e53d",
+    "username": "root",
+    "executable": "/usr/bin/python3"
+}

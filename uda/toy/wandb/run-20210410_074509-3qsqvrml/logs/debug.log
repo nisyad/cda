@@ -1,0 +1,64 @@
+2021-04-10 07:45:10,035 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:45:10,037 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:45:10,039 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074509-3qsqvrml/logs/debug.log
+2021-04-10 07:45:10,041 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074509-3qsqvrml/logs/debug-internal.log
+2021-04-10 07:45:10,042 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:45:10,047 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 15, 'batch_size': 64, 'learning_rate': 0.0002, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:45:10,053 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:46:34,361 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:46:34,363 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:46:34,364 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074634-140820bu/logs/debug.log
+2021-04-10 07:46:34,365 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074634-140820bu/logs/debug-internal.log
+2021-04-10 07:46:34,366 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:46:34,367 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 15, 'batch_size': 64, 'learning_rate': 0.0002, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:46:34,373 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:47:54,618 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:47:54,620 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:47:54,622 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074754-1vh8lxfg/logs/debug.log
+2021-04-10 07:47:54,623 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074754-1vh8lxfg/logs/debug-internal.log
+2021-04-10 07:47:54,625 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:47:54,626 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 15, 'batch_size': 32, 'learning_rate': 0.0005, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:47:54,633 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:49:48,042 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:49:48,044 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:49:48,049 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074947-2yoefxsa/logs/debug.log
+2021-04-10 07:49:48,050 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_074947-2yoefxsa/logs/debug-internal.log
+2021-04-10 07:49:48,052 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:49:48,053 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 25, 'batch_size': 32, 'learning_rate': 0.0005, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:49:48,060 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:53:00,268 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:53:00,270 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:53:00,271 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075300-1qnrf77w/logs/debug.log
+2021-04-10 07:53:00,273 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075300-1qnrf77w/logs/debug-internal.log
+2021-04-10 07:53:00,275 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:53:00,276 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 25, 'batch_size': 32, 'learning_rate': 0.005, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:53:00,283 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:55:31,509 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:55:31,511 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:55:31,513 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075531-3ow2otb4/logs/debug.log
+2021-04-10 07:55:31,515 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075531-3ow2otb4/logs/debug-internal.log
+2021-04-10 07:55:31,517 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:55:31,519 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 25, 'batch_size': 128, 'learning_rate': 0.005, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:55:31,526 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:57:58,992 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:57:58,994 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:57:58,996 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075758-xns3kyj8/logs/debug.log
+2021-04-10 07:57:58,998 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075758-xns3kyj8/logs/debug-internal.log
+2021-04-10 07:57:59,000 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:57:59,001 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 25, 'batch_size': 128, 'learning_rate': 0.005, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:57:59,009 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
+2021-04-10 07:58:54,631 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting env: {}
+2021-04-10 07:58:54,634 INFO    MainThread:1689 [wandb_setup.py:_flush():69] setting login settings: {}
+2021-04-10 07:58:54,636 INFO    MainThread:1689 [wandb_init.py:_log_setup():336] Logging user logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075854-38g8ib7k/logs/debug.log
+2021-04-10 07:58:54,637 INFO    MainThread:1689 [wandb_init.py:_log_setup():337] Logging internal logs to /content/drive/My Drive/Colab Notebooks/NASA_Transfer_Learning/toy/wandb/run-20210410_075854-38g8ib7k/logs/debug-internal.log
+2021-04-10 07:58:54,640 INFO    MainThread:1689 [wandb_init.py:init():369] calling init triggers
+2021-04-10 07:58:54,641 INFO    MainThread:1689 [wandb_init.py:init():376] wandb.init called with sweep_config: {}
+config: {'epochs': 25, 'batch_size': 32, 'learning_rate': 0.0002, 'classes': 10, 'img_size': 28, 'dataset': 'mnist-mnist_m', 'architecture': 'ganin'}
+2021-04-10 07:58:54,649 INFO    MainThread:1689 [wandb_watch.py:watch():39] Watching
